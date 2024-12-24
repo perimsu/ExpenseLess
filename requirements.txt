@@ -1,0 +1,13 @@
+pip~=24.3.1
+protobuf~=5.29.2
+cryptography~=44.0.0
+pillow~=11.0.0
+Flask~=3.1.0
+google-auth-oauthlib~=1.2.1
+google-api-python-client~=2.156.0
+requests~=2.32.3
+pdfplumber~=0.11.4
+bs4~=0.0.2
+beautifulsoup4~=4.12.3
+pandas~=2.2.3
+matplotlib~=3.10.0
