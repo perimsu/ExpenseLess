@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ExpenseLess - Login</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="login-page">
+    <div class="login-container">
+        <div class="login-content">
+            <div class="login-header">
+                <h1 class="logo">ExpenseLess</h1>
+                <p class="tagline">Manage Your Spending Smartly</p>
+            </div>
+            
+            <div class="features">
+                <div class="feature-item">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Manage Your Spending Smartly</span>
+                </div>
+                <div class="feature-item">
+                    <i class="fas fa-wallet"></i>
+                    <span>Easy Budget Tracking</span>
+                </div>
+                <div class="feature-item">
+                    <i class="fas fa-chart-pie"></i>
+                    <span>Visualize Your Expenses Better</span>
+                </div>
+            </div>
+
+            <button class="google-btn" onclick="handleGoogleLogin()">
+                <img src="image/google.jpg" alt="Google logo" class="google-icon">
+                Login with Google
+            </button>
+
+            <div class="login-footer">
+                <p>Secure and Fast Login</p>
+                <div class="security-badges">
+                    <i class="fas fa-lock"></i>
+                    <i class="fas fa-shield-alt"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function handleGoogleLogin() {
+            window.location.href = 'dashboard.html';
+        }
+    </script>
+</body>
+</html>

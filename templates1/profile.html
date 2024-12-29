@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ExpenseLess - Profile</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <main class="main-content">
+        <header class="top-bar">
+            <div class="header-left">
+                <a href="dashboard.html" class="logo">ExpenseLess</a>
+            </div>
+            <div class="user-info">
+                <div class="profile-link" id="profileDropdownToggle">
+                    <img src="image/userProfile.png" alt="Profil" class="avatar">
+                    <span>Welcome</span>
+                    <i class="fas fa-chevron-down"></i>
+                </div>
+                <div class="user-menu" id="userDropdownMenu">
+                    <a href="profile.html" class="menu-item">
+                        <i class="fas fa-user"></i> Profile
+                    </a>
+                    <button type="button" class="menu-item logout-btn" id="logoutButton">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                </div>
+            </div>
+        </header>
+        <div class="back-to-dashboard">
+            <a href="dashboard.html" class="back-link">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+        
+        <div class="profile-container">
+            <section class="profile-section user-info-section">
+                <h2>User Information</h2>
+                <div class="profile-info">
+                    <div class="profile-image">
+                        <img src="image/userProfile.png" alt="Profile Photo">
+                        <button class="change-photo-btn">Change Photo</button>
+                    </div>
+                    <div class="profile-details">
+                        <div class="info-group">
+                            <label>Full Name</label>
+                            <input type="text" value="" readonly>
+                            <button class="edit-btn"><i class="fas fa-edit"></i></button>
+                        </div>
+                        <div class="info-group">
+                            <label>Email</label>
+                            <input type="email" value="" disabled class="disabled-input">
+                        </div>
+                        <div class="info-group">
+                            <label>Phone</label>
+                            <input type="tel" value="" readonly>
+                            <button class="edit-btn"><i class="fas fa-edit"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="profile-section stats-section">
+                <h2>Spending Statistics</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>Most Spent Category</h3>
+                        <p class="stat-value">Waiting...</p>
+                        <p class="stat-detail">Total: ₺0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Highest Spending Date</h3>
+                        <p class="stat-value">Waiting...</p>
+                        <p class="stat-detail">Total: ₺0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Monthly Average</h3>
+                        <p class="stat-value">₺0</p>
+                        <p class="stat-detail">Last 6 months average</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="profile-section transactions-section">
+                <h2>Recent Transactions</h2>
+                <div class="transactions-list">
+                <!-- veriler backend den alınacak-->
+                </div>
+            </section>
+
+            <section class="profile-section category-section">
+                <h2>Category Management</h2>
+                <div class="category-manager">
+                    <div class="category-list">
+                        <!-- veriler backend den alınacak-->
+                    </div>
+                    <div class="add-category">
+                        <input type="text" placeholder="Add new category">
+                        <button class="add-btn"><i class="fas fa-plus"></i></button>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+    <script src="profile.js"></script>
+</body>
+</html>
