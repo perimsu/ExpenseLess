@@ -1,16 +1,111 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard</title>
+    <title>ExpenseLess</title>
+    <style>
+       body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    height: 100%;
+}
+
+.left-panel {
+    padding: 20px;
+    overflow-y: auto;
+    border-right: 1px solid #ddd;
+    background-color: #f9f9f9;
+    height: 100%;
+    box-sizing: border-box;
+}
+
+.right-panel {
+    padding: 20px;
+    overflow-y: auto;
+    height: 100%;
+    box-sizing: border-box;
+}
+
+.horizontal-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.horizontal-container h2 {
+    margin-right: 10px;
+}
+
+#monthForm select {
+    padding: 5px;
+    font-size: 14px;
+}
+
+#expenses-container {
+    height: calc(100% - 60px);
+    overflow-y: auto;
+    padding: 10px;
+    background-color: white;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    box-sizing: border-box;
+}
+
+
+ul {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+}
+
+li {
+    margin-bottom: 15px;
+}
+
+    </style>
 </head>
 <body>
-    <h1>Invoice Analysis</h1>
-    <h2>Spending Distribution by Platform</h2>
-    <img src="/static/platform_pie_chart.png" alt="Platform Pie Chart">
+    <div class="container">
+        <!-- Sol Panel -->
+        <div class="left-panel">
+            <div class="horizontal-container">
+                <h2>Expenses</h2>
+                <form method="post" action="{{ url_for('dashboard') }}" id="monthForm" style="display: inline;">
+                    <select name="month" id="monthSelect" onchange="document.getElementById('monthForm').submit();">
+                        {% for month in all_months %}
+                            <option value="{{ month.number }}" {% if month.number == selected_month %}selected{% endif %}>
+                                {{ month.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </div>
 
-    <h2>Monthly Spending Trends</h2>
-    <img src="/static/monthly_trend_chart.png" alt="Monthly Trend Chart">
+            <div id="expenses-container">
+                <ul>
+                {% for email in emails %}
+                    <li>
+                        <strong>Sender:</strong> {{ email.sender }}<br>
+                        <strong>Date:</strong> {{ email.date }}<br>
+                        <strong>Total Amount:</strong> {{ email.total_amount }}
+                    </li>
+                {% endfor %}
+                </ul>
+            </div>
+        </div>
+
+        <!-- Sağ Panel -->
+        <div class="right-panel">
+            <h2>Visualization Placeholder</h2>
+            <p>Bu alan görselleştirme için ayrılmıştır.</p>
+        </div>
+    </div>
 </body>
 </html>
