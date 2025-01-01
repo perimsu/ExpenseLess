@@ -1,17 +1,18 @@
-import base64
 import calendar
+import os
+import datetime
 
 from flask import Flask, redirect, url_for, session, render_template, request
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
-import os
-import datetime
+
+
 
 from web_scraping import (
     list_emails_with_month,
     extract_order_details,
-    get_deepest_text_payload
+    get_deepest_text_payload, process_email_with_pdf, extract_trendyol_order_details, parse_email_date
 )
 
 app = Flask(__name__, static_folder='static')
@@ -60,8 +61,8 @@ def dashboard():
     if "credentials" not in session:
         return redirect(url_for('index'))
 
-    credentials = Credentials(**session["credentials"])
-    service = build('gmail', 'v1', credentials=credentials)
+    creds = Credentials(**session["credentials"])
+    service = build('gmail', 'v1', credentials=creds)
 
     today = datetime.datetime.now()
     selected_year = today.year
@@ -71,42 +72,112 @@ def dashboard():
         selected_month = int(request.form.get('month', selected_month))
         selected_year = int(request.form.get('year', selected_year))
 
-    keywords = ['e-fatura', 'e-ticket', 'sipariş']
+    # Yıl aralığını tanımla (örneğin, mevcut yıl ve önceki 5 yıl)
+    current_year = today.year
+    years_back = 5
+    all_years = list(range(current_year, current_year - years_back - 1, -1))
 
-    emails, month_name = list_emails_with_month(
+    # Trendyol ve genel sipariş e-postalarını al
+    trendyol_keywords = ['siparişini aldık']
+    general_keywords = ['sipariş']
+
+    # Her iki tür sipariş için e-postaları al
+    trendyol_emails, _ = list_emails_with_month(
         service,
-        keywords,
+        trendyol_keywords,
         selected_year,
-        selected_month
+        selected_month,
+        query="from:info@trendyolmail.com"
+    )
+
+    other_emails, month_name = list_emails_with_month(
+        service,
+        general_keywords,
+        selected_year,
+        selected_month,
+        query=f"({' OR '.join(general_keywords)})"
     )
 
     enriched_emails = []
-    for email in emails:
-        msg_data = service.users().messages().get(userId='me', id=email['id']).execute()
+    # Trendyol e-postalarını işle
+    for email in trendyol_emails:
+        msg_data = service.users().messages().get(
+            userId='me',
+            id=email['id']
+        ).execute()
         payload = msg_data.get('payload', {})
 
         body_content = get_deepest_text_payload(payload)
-        extracted_details = extract_order_details(body_content)
+        extracted = extract_trendyol_order_details(body_content)
 
-        debug_order_id = extracted_details['order_id']
-        print(f"DEBUG -> E-posta konusu: {email.get('subject')} | Order ID: {debug_order_id}")
-
-        total_amount_value = extracted_details['total_amount']
+        # Veriler gövdede yoksa PDF'i işle
+        if extracted['order_id'] == "Trendyol Sipariş Numarası Bulunamadı":
+            pdf_data = process_email_with_pdf(service, 'me', email['id'])
+            if pdf_data['order_id'] != "Sipariş Numarası bulunamadı":
+                extracted = pdf_data
 
         enriched_emails.append({
             'subject': email.get('subject', '(No Subject)'),
             'sender': email.get('sender', '(Unknown Sender)'),
             'date': email.get('date', '(Unknown Date)'),
-            'total_amount': total_amount_value
+            'total_amount': extracted['total_amount'],
+            'order_id': extracted['order_id'],
+            'source': 'Trendyol'
         })
 
-    all_months = [{"number": i, "name": calendar.month_name[i]} for i in range(1, 13)]
+    # Diğer e-postaları işle
+    for email in other_emails:
+        msg_data = service.users().messages().get(
+            userId='me',
+            id=email['id']
+        ).execute()
+        payload = msg_data.get('payload', {})
+
+        body_content = get_deepest_text_payload(payload)
+        extracted = extract_order_details(body_content)
+
+        # Veriler gövdede yoksa PDF'i işle
+        if extracted['order_id'] == "Sipariş Numarası bulunamadı":
+            pdf_data = process_email_with_pdf(service, 'me', email['id'])
+            if pdf_data['order_id'] != "Sipariş Numarası bulunamadı":
+                extracted = pdf_data
+
+        enriched_emails.append({
+            'subject': email.get('subject', '(No Subject)'),
+            'sender': email.get('sender', '(Unknown Sender)'),
+            'date': email.get('date', '(Unknown Date)'),
+            'total_amount': extracted['total_amount'],
+            'order_id': extracted['order_id'],
+            'source': 'Other'
+        })
+
+    # Tekrarlayan siparişleri order_id'ye göre kaldır
+    seen_order_ids = set()
+    unique_emails = []
+    for email in enriched_emails:
+        if email['order_id'] not in seen_order_ids and email['order_id'] != "Sipariş Numarası bulunamadı":
+            seen_order_ids.add(email['order_id'])
+            unique_emails.append(email)
+
+    # E-posta tarihlerini datetime nesnelerine dönüştür ve sıralama yap
+    for email in unique_emails:
+        parsed_date = parse_email_date(email['date'])
+        email['parsed_date'] = parsed_date
+
+    # Tarihe göre azalan sırada (en yeni en üstte) sırala
+    unique_emails.sort(key=lambda x: x['parsed_date'] or datetime.datetime.min, reverse=True)
+
+    all_months = [
+        {"number": i, "name": calendar.month_name[i]} for i in range(1, 13)
+    ]
 
     return render_template(
         'dashboard.html',
-        emails=enriched_emails,
+        emails=unique_emails,
         all_months=all_months,
+        all_years=all_years,
         selected_month=selected_month,
+        selected_year=selected_year,
         month_name=month_name
     )
 
@@ -120,7 +191,6 @@ def credentials_to_dict(credentials):
         'client_secret': credentials.client_secret,
         'scopes': credentials.scopes
     }
-
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -1,75 +1,104 @@
-<!DOCTYPE html>
+                                      <!DOCTYPE html>
 <html>
 <head>
     <title>ExpenseLess</title>
     <style>
        body {
-    margin: 0;
-    padding: 0;
-    font-family: Arial, sans-serif;
-    height: 100vh;
-    overflow: hidden;
-}
+           margin: 0;
+           padding: 0;
+           font-family: Arial, sans-serif;
+           height: 100vh;
+           overflow: hidden;
+       }
 
-.container {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    height: 100%;
-}
+       .container {
+           display: grid;
+           grid-template-columns: 1fr 1fr;
+           height: 100%;
+       }
 
-.left-panel {
-    padding: 20px;
-    overflow-y: auto;
-    border-right: 1px solid #ddd;
-    background-color: #f9f9f9;
-    height: 100%;
-    box-sizing: border-box;
-}
+       .left-panel {
+           padding: 20px;
+           overflow-y: auto;
+           border-right: 1px solid #ddd;
+           background-color: #f9f9f9;
+           height: 100%;
+           box-sizing: border-box;
+       }
 
-.right-panel {
-    padding: 20px;
-    overflow-y: auto;
-    height: 100%;
-    box-sizing: border-box;
-}
+       .right-panel {
+           padding: 20px;
+           overflow-y: auto;
+           height: 100%;
+           box-sizing: border-box;
+       }
 
-.horizontal-container {
-    display: flex;
-    align-items: center;
-    margin-bottom: 20px;
-}
+       .horizontal-container {
+           display: flex;
+           align-items: center;
+           margin-bottom: 20px;
+       }
 
-.horizontal-container h2 {
-    margin-right: 10px;
-}
+       .horizontal-container h2 {
+           margin-right: 10px;
+       }
 
-#monthForm select {
-    padding: 5px;
-    font-size: 14px;
-}
+       /* Updated: Styling for both month and year selects */
+       #filterForm select {
+           padding: 5px;
+           font-size: 14px;
+           margin-right: 10px; /* Add some space between selects */
+       }
 
-#expenses-container {
-    height: calc(100% - 60px);
-    overflow-y: auto;
-    padding: 10px;
-    background-color: white;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    box-sizing: border-box;
-}
+       /* Optional: Style the submit button if you decide to include one */
+       #filterForm button {
+           padding: 5px 10px;
+           font-size: 14px;
+           cursor: pointer;
+       }
 
+       #expenses-container {
+           height: calc(100% - 60px);
+           overflow-y: auto;
+           padding: 10px;
+           background-color: white;
+           border: 1px solid #ccc;
+           border-radius: 5px;
+           box-sizing: border-box;
+       }
 
-ul {
-    list-style-type: none;
-    margin: 0;
-    padding: 0;
-}
+       ul {
+           list-style-type: none;
+           margin: 0;
+           padding: 0;
+       }
 
-li {
-    margin-bottom: 15px;
-}
+       li {
+           margin-bottom: 15px;
+       }
 
+       /* Yeni eklediğimiz kısım: Sağ panelde grafik alanını daha belirgin kılmak için. */
+       .chart-container {
+           margin-top: 20px;
+           border: 1px solid #ccc;
+           border-radius: 5px;
+           padding: 10px;
+           background-color: #fff;
+       }
+
+       /* Görseli responsive halde göstermek için */
+       .chart-container img {
+           display: block;
+           max-width: 100%;
+           height: auto;
+       }
     </style>
+    <script>
+        // JavaScript function to submit the form when any select changes
+        function submitFilterForm() {
+            document.getElementById('filterForm').submit();
+        }
+    </script>
 </head>
 <body>
     <div class="container">
@@ -77,11 +106,22 @@ li {
         <div class="left-panel">
             <div class="horizontal-container">
                 <h2>Expenses</h2>
-                <form method="post" action="{{ url_for('dashboard') }}" id="monthForm" style="display: inline;">
-                    <select name="month" id="monthSelect" onchange="document.getElementById('monthForm').submit();">
+                <!-- Updated: Combined form for both month and year selection -->
+                <form method="post" action="{{ url_for('dashboard') }}" id="filterForm" style="display: inline;">
+                    <!-- Month Select -->
+                    <select name="month" id="monthSelect" onchange="submitFilterForm();">
                         {% for month in all_months %}
                             <option value="{{ month.number }}" {% if month.number == selected_month %}selected{% endif %}>
                                 {{ month.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+
+                    <!-- Year Select -->
+                    <select name="year" id="yearSelect" onchange="submitFilterForm();">
+                        {% for year in all_years %}
+                            <option value="{{ year }}" {% if year == selected_year %}selected{% endif %}>
+                                {{ year }}
                             </option>
                         {% endfor %}
                     </select>
@@ -90,21 +130,35 @@ li {
 
             <div id="expenses-container">
                 <ul>
-                {% for email in emails %}
-                    <li>
-                        <strong>Sender:</strong> {{ email.sender }}<br>
-                        <strong>Date:</strong> {{ email.date }}<br>
-                        <strong>Total Amount:</strong> {{ email.total_amount }}
-                    </li>
-                {% endfor %}
+                {% if emails %}
+                    {% for email in emails %}
+                        <li>
+                            <strong>Sender:</strong> {{ email.sender }}<br>
+                            <strong>Date:</strong> {{ email.date }}<br>
+                            <strong>Total Amount:</strong> {{ email.total_amount }}
+                        </li>
+                    {% endfor %}
+                {% else %}
+                    <li>No expenses found for the selected period.</li>
+                {% endif %}
                 </ul>
             </div>
         </div>
 
         <!-- Sağ Panel -->
         <div class="right-panel">
-            <h2>Visualization Placeholder</h2>
-            <p>Bu alan görselleştirme için ayrılmıştır.</p>
+            <h2>Expense Visualization</h2>
+            <p>Bu alan, seçilen aya ait harcama grafiğini gösterir.</p>
+
+            <!-- Grafik Konteyneri -->
+            <div class="chart-container">
+                {% if plot_url %}
+                    <!-- Base64 enkode edilmiş görseli direkt img src'sine gömüyoruz -->
+                    <img src="data:image/png;base64,{{ plot_url }}" alt="Aylık Toplam Harcamalar Grafiği" />
+                {% else %}
+                    <p>Şu an görüntülenecek bir grafik bulunmuyor.</p>
+                {% endif %}
+            </div>
         </div>
     </div>
 </body>
