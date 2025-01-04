@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ExpenseLess</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <style>
-    </style>
+
 </head>
 <body>
     <header>
@@ -23,7 +22,7 @@
             <p>ExpenseLess helps you manage your spending effortlessly by extracting
                 e-commerce invoices from emails and creating a clear expense history.</p>
             <br>
-            <a href="/login">Get Started</a>
+            <a href="{{ url_for('login') }}" class="button">Get Started</a>
 
         <h3 class="features" id="features">Features</h3>
         <div class="grid">

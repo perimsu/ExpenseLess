@@ -135,4 +135,215 @@ footer a {
 footer a:hover {
     color: #778DA9;
 }
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Arial', sans-serif;
+    background-color: #ced4da;
+}
+
+.logo {
+    color: #2C3E50;
+    font-size: 24px;
+    font-weight: bold;
+    background: linear-gradient(45deg, #2C3E50, #3498DB);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    text-align: center;
+}
+.welcome-text {
+    font-size: 16px;
+    font-weight: 500;
+    color: #2C3E50;
+    margin-bottom: 30px;
+}
+
+.google-btn {
+    background: #2ecc71;
+    border: none;
+    border-radius: 30px;
+    padding: 15px 30px;
+    font-size: 16px;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: 0 auto;
+    transition: all 0.3s ease;
+    width: 80%;
+    max-width: 300px;
+    box-shadow: 0 4px 6px rgba(46, 204, 113, 0.2);
+}
+.google-btn:hover {
+    transform: translateY(-2px);
+    background: #27ae60;
+    box-shadow: 0 6px 12px rgba(46, 204, 113, 0.3);
+}
+google-icon{
+    width: 20px;
+    height: 20px;
+    margin-right: 10px;
+}
+.google-btn img {
+    width: 20px;
+    height: 20px;
+}
+
+.main-content {
+    padding: 20px;
+}
+
+.top-bar {
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    margin-bottom: 25px;
+    height: 60px;
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: relative;
+}
+.avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+}
+.dashboard-grid {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+.card {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.amount {
+    font-size: 24px;
+    font-weight: bold;
+    margin: 10px 0;
+}
+.change {
+    font-size: 14px;
+}
+
+.change.positive {
+    color: #2ecc71;
+}
+
+.change.negative {
+    color: #e74c3c;
+}
+.transactions-categories-container {
+    grid-column: span 3;
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 20px;
+}
+.recent-transactions {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.spending-categories {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.chart-container {
+    grid-column: span 3;
+    background: white;
+    border-radius: 15px;
+    padding: 25px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    max-height: 300px;
+    margin: 0 auto 20px;
+    overflow: hidden;
+    width: 100%;
+    max-width: 1200px;
+}
+.transaction-list {
+    margin-top: 15px;
+}
+.transaction-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #eee;
+}
+
+/* Ekstra Stil Ayarları */
+
+.user-menu {
+    position: absolute;
+    top: 60px;
+    right: 20px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    min-width: 180px;
+    display: none;
+    z-index: 1000;
+}
+.user-menu.active {
+    display: block;
+}
+.profile-link {
+    cursor: default;
+    padding: 8px;
+    border-radius: 4px;
+    transition: background-color 0.3s ease;
+}
+.profile-link:hover {
+    background-color: rgba(0,0,0,0.05);
+}
+.menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    color: #2C3E50;
+    text-decoration: none;
+    transition: background 0.3s ease;
+    cursor: pointer;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    font-size: 14px;
+}
+.menu-item:hover {
+    background: #f5f5f5;
+}
+.menu-item i {
+    width: 16px;
+}
+.logout-btn {
+    color: #e74c3c;
+    border-top: 1px solid #eee;
+}
+.logout-btn:hover {
+    background: #fde8e7;
+}
+
 
