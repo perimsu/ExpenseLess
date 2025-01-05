@@ -6,7 +6,7 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
 import pandas as pd
-from visualization import generate_pie_chart_only
+from visualization import generate_pie_chart, generate_line_chart
 from web_scraping import (
     list_emails_with_month,
     extract_order_details,
@@ -28,24 +28,20 @@ flow = Flow.from_client_secrets_file(
 
 @app.route('/')
 def index():
-    """Ana sayfayı render eder."""
     return render_template('index.html')
 
 @app.route('/login_page')
 def login_page():
-    """Giriş sayfasını render eder."""
     return render_template('login.html')
 
 @app.route('/login')
 def login():
-    """Kullanıcıyı Google giriş sayfasına yönlendirir."""
     authorization_url, state = flow.authorization_url()
     session["state"] = state
     return redirect(authorization_url)
 
 @app.route('/callback')
 def callback():
-    """OAuth geri çağrısını işler ve kimlik bilgilerini kaydeder."""
     try:
         flow.fetch_token(authorization_response=request.url)
         credentials = flow.credentials
@@ -63,7 +59,6 @@ def callback():
 
 @app.route('/dashboard', methods=['GET', 'POST'])
 def dashboard():
-    """E-posta verileri ve görselleştirmelerle dashboard'u render eder."""
     if "credentials" not in session:
         return redirect(url_for('index'))
 
@@ -148,7 +143,11 @@ def dashboard():
             selected_year=selected_year
         )
 
-    pie_chart_url = generate_pie_chart_only(data_for_charts)
+    data_for_charts['date'] = pd.to_datetime(data_for_charts['date'], errors='coerce')
+    daily_expenses = data_for_charts.groupby(data_for_charts['date'].dt.day)['total_amount'].sum()
+
+    pie_chart_url = generate_pie_chart(data_for_charts)
+    line_chart_url = generate_line_chart(daily_expenses, calendar.month_name[selected_month])
 
     return render_template(
         'dashboard.html',
@@ -158,7 +157,8 @@ def dashboard():
         selected_month=selected_month,
         selected_year=selected_year,
         month_name=month_name,
-        pie_chart_url=pie_chart_url
+        pie_chart_url=pie_chart_url,
+        line_chart_url=line_chart_url
     )
 
 if __name__ == '__main__':
