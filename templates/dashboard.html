@@ -36,13 +36,14 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
+            overflow-y: auto; /* Added to allow scrolling if content overflows */
         }
 
         h2 {
-            font-size: 24px;
+            font-size: 26px; /* Font büyüklüğü artırıldı */
             margin-bottom: 20px;
             text-align: center;
+            color: #60a5fa; /* Açık mavi renk */
         }
 
         .horizontal-container {
@@ -50,6 +51,7 @@
             justify-content: center;
             align-items: center;
             margin-bottom: 20px;
+            gap: 10px;
         }
 
         select {
@@ -58,13 +60,22 @@
             border: 1px solid #334155;
             border-radius: 5px;
             padding: 10px;
-            margin: 0 5px;
+            min-width: 150px;
             font-size: 14px;
             cursor: pointer;
+            appearance: auto;
+            -webkit-appearance: auto;
         }
 
-        select:hover {
-            background-color: #334155;
+        select:focus {
+            outline: 2px solid #60a5fa;
+            outline-offset: 2px;
+        }
+
+        select option {
+            background-color: #1e293b;
+            color: white;
+            padding: 8px;
         }
 
         #expenses-container ul {
@@ -88,21 +99,51 @@
             color: #60a5fa;
         }
 
-        .chart-container {
+        .charts-container {
             width: 100%;
-            max-width: 600px;
-            text-align: center;
+            max-width: 1200px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
         }
 
-        .chart-container img {
+        .chart {
+            width: 100%;
+            max-width: 600px; /* Maksimum genişlik artırıldı */
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin: 0 auto; /* Merkezi hizalama */
+        }
+
+        .chart h3 {
+            color: #1e293b;
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 18px;
+        }
+
+        .chart img {
             width: 100%;
             height: auto;
-            border-radius: 8px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+            border: 1px solid #334155;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
         }
 
-        .chart-container p {
+        .no-data {
+            text-align: center;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+        }
+
+        .no-data p {
+            margin: 0;
             color: #94a3b8;
+            font-size: 16px;
         }
 
         @media (max-width: 768px) {
@@ -114,24 +155,50 @@
                 width: 100%;
                 height: auto;
             }
+
+            .chart {
+                max-width: 100%;
+            }
+        }
+
+        /* Custom scrollbar for better visibility in dark theme */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #60a5fa;
         }
     </style>
     <script>
-        // JavaScript function to submit the form when any select changes
         function submitFilterForm() {
-            document.getElementById('filterForm').submit();
+            const form = document.getElementById('filterForm');
+            if (form) {
+                form.submit();
+            } else {
+                console.error("Filter form not found!");
+            }
         }
     </script>
 </head>
 <body>
     <div class="container">
-        <!-- Sol Panel -->
+        <!-- Left Panel -->
         <div class="left-panel">
             <h2>Expenses</h2>
-            <!-- Form for month and year selection -->
             <form method="post" action="{{ url_for('dashboard') }}" id="filterForm">
                 <div class="horizontal-container">
                     <select name="month" id="monthSelect" onchange="submitFilterForm();">
+                        <option disabled selected value> -- Select Month -- </option>
                         {% for month in all_months %}
                             <option value="{{ month.number }}" {% if month.number == selected_month %}selected{% endif %}>
                                 {{ month.name }}
@@ -140,6 +207,7 @@
                     </select>
 
                     <select name="year" id="yearSelect" onchange="submitFilterForm();">
+                        <option disabled selected value> -- Select Year -- </option>
                         {% for year in all_years %}
                             <option value="{{ year }}" {% if year == selected_year %}selected{% endif %}>
                                 {{ year }}
@@ -166,15 +234,27 @@
             </div>
         </div>
 
-        <!-- Sağ Panel -->
+        <!-- Right Panel -->
         <div class="right-panel">
             <h2>Expense Visualization</h2>
+            <div class="charts-container">
+                {% if pie_chart_url %}
+                <div class="chart">
+                    <img src="data:image/png;base64,{{ pie_chart_url }}" alt="Pie Chart">
+                </div>
+                {% endif %}
 
-            <div class="chart-container">
-                {% if plot_url %}
-                    <img src="data:image/png;base64,{{ plot_url }}" alt="Aylık Toplam Harcamalar Grafiği" />
-                {% else %}
-                    <p>Şu an görüntülenecek bir grafik bulunmuyor.</p>
+                {% if bar_chart_url %}
+                <div class="chart">
+                    <h3>Aylık Harcama Eğilimi</h3>
+                    <img src="data:image/png;base64,{{ bar_chart_url }}" alt="Bar Chart">
+                </div>
+                {% endif %}
+
+                {% if not pie_chart_url and not bar_chart_url %}
+                <div class="no-data">
+                    <p>No data available for the selected period. Please choose another month or year.</p>
+                </div>
                 {% endif %}
             </div>
         </div>
