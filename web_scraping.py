@@ -34,11 +34,17 @@ def get_deepest_text_payload(payload):
     html_texts = [text for mime, text in texts if mime == 'text/html']
 
     if plain_texts:
-        return ' '.join(plain_texts)
+        full_text = ' '.join(plain_texts)
     elif html_texts:
         soup = BeautifulSoup(html_texts[0], 'html.parser')
-        return ' '.join(soup.get_text(separator=' ', strip=True).split())
-    return ""
+        full_text = soup.get_text(separator=' ', strip=True)
+    else:
+        return ""
+
+    # Metni temizle
+    full_text = re.sub(r'\s+', ' ', full_text).strip()
+    return full_text
+
 
 
 def extract_order_id(full_text):
@@ -47,6 +53,8 @@ def extract_order_id(full_text):
         r'(SİPARİŞ NO[:#\.]?|Order ID[:#\.]?)[^\d]*(\d+)',
         r'#(\d+)',
         r'(\d+)\s+numaralı\s+siparişini\s+aldık',
+        r"Sipariş No\.?\s*(\d+-\d+-\d+)",
+        r"#(\d{3}-\d{7}-\d{7})",
     ]
 
     for pattern in order_id_patterns:
@@ -64,9 +72,10 @@ def extract_amount(full_text):
     text = re.sub(r'\s+', ' ', text)
 
     general_patterns = [
-        r'(?:Toplam|Tutar|Amount|Total)[^0-9₺TL$USD€EUR]*?([\d.,]+)\s*(?:TL|TRY|₺|\$|USD|€|EUR)',
+        r'(?:Ara toplam|Toplam|Tutar|Amount|Total)[^0-9₺TL$USD€EUR]*?([\d.,]+)\s*(?:TL|TRY|₺|\$|USD|€|EUR)',
         r'([\d.,]+)\s*(?:TL|TRY|₺|\$|USD|€|EUR)',
         r'[₺$€]\s*([\d.,]+)',
+        r"KDV Dahil Sipariş Toplamı:\s*([\d.,]+)\s*TL"
     ]
 
     for pattern in general_patterns:
@@ -154,7 +163,8 @@ def extract_trendyol_order_details(html_content):
 
 def list_emails_with_details(service, keywords, max_results=50, query=None):
     keyword_query = " OR ".join(keywords)
-    merged_query = f"{keyword_query} {query}" if query else keyword_query
+    temu_filter = "-from:temu@orders.temu.com"
+    merged_query = f"{keyword_query} {query} {temu_filter}" if query else f"{keyword_query} {temu_filter}"
 
     try:
         results = service.users().messages().list(
@@ -206,6 +216,7 @@ def list_emails_with_details(service, keywords, max_results=50, query=None):
             continue
 
     return email_details
+
 
 
 def get_date_range_for_month(year, month):
@@ -301,6 +312,23 @@ def process_all_orders(service, max_results=50):
             body_content = get_deepest_text_payload(payload)
             extracted_data = extract_trendyol_order_details(body_content)
 
+            if not check_content_keywords(body_content):
+                attachment_ids = process_email_attachments(msg_data)
+                for att_id in attachment_ids:
+                    attachment = service.users().messages().attachments().get(
+                        userId='me',
+                        messageId=msg_id,
+                        id=att_id
+                    ).execute()
+
+                    pdf_data = attachment.get('data', '')
+                    if pdf_data:
+                        pdf_text = extract_pdf_content(pdf_data)
+                        pdf_extracted_data = extract_pdf_order_details(pdf_text)
+                        if pdf_extracted_data:
+                            extracted_data = pdf_extracted_data
+                            break
+
             subject = next((h['value'] for h in headers if h['name'] == 'Subject'), 'Unknown')
             sender = next((h['value'] for h in headers if h['name'] == 'From'), 'Unknown')
             date = next((h['value'] for h in headers if h['name'] == 'Date'), 'Unknown')
@@ -334,42 +362,33 @@ def process_all_orders(service, max_results=50):
             date = next((h['value'] for h in headers if h['name'] == 'Date'), 'Unknown')
 
             body_content = get_deepest_text_payload(payload)
-            extracted_data = None
+            extracted_data = extract_order_details(body_content)
 
-            # Boyner için PDF işleme kontrolü
-            if "Boyner" in sender:
+            if not check_content_keywords(body_content):
                 attachment_ids = process_email_attachments(msg_data)
-                if attachment_ids:
-                    att_id = attachment_ids[0]
-                    try:
-                        attachment = service.users().messages().attachments().get(
-                            userId='me',
-                            messageId=msg_id,
-                            id=att_id
-                        ).execute()
+                for att_id in attachment_ids:
+                    attachment = service.users().messages().attachments().get(
+                        userId='me',
+                        messageId=msg_id,
+                        id=att_id
+                    ).execute()
 
-                        pdf_data = attachment.get('data', '')
-                        if pdf_data:
-                            pdf_text = extract_pdf_content(pdf_data)
-                            extracted_data = extract_pdf_order_details(pdf_text)
-
-                    except Exception as e:
-                        print(f"Boyner PDF işleme hatası: {e}")
-                        continue
-
-            if not extracted_data:
-                continue
-
-            print("Extracted data from PDF:", extracted_data)  # Debug print
+                    pdf_data = attachment.get('data', '')
+                    if pdf_data:
+                        pdf_text = extract_pdf_content(pdf_data)
+                        pdf_extracted_data = extract_pdf_order_details(pdf_text)
+                        if pdf_extracted_data:
+                            extracted_data = pdf_extracted_data
+                            break
 
             new_order = {
                 "subject": subject,
                 "sender": sender,
                 "date": date,
-                "order_id": extracted_data.get('order_number', "Unknown Order ID"),  # Use get to avoid KeyError
-                "amount": extracted_data.get('total_amount', "Unknown Amount"),  # Use get to avoid KeyError
-                "source": "Boyner",
-                "processed_from": "PDF" if "Boyner" in sender else "Email"
+                "order_id": extracted_data['order_id'],
+                "amount": extracted_data['total_amount'],
+                "source": "Other",
+                "processed_from": "Email" if check_content_keywords(body_content) else "PDF"
             }
 
             if not is_duplicate_order(all_emails, new_order):

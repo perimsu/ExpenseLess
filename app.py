@@ -1,20 +1,15 @@
 import os
 import calendar
+import base64
 from flask import Flask, redirect, url_for, session, render_template, request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
 import pandas as pd
-
 from pdf_processor import process_email_attachments, extract_pdf_content, extract_pdf_order_details
 from visualization import generate_pie_chart, generate_line_chart
-from web_scraping import (
-    list_emails_with_month,
-    extract_order_details,
-    get_deepest_text_payload,
-)
-
+from web_scraping import list_emails_with_month, extract_order_details, get_deepest_text_payload
 
 app = Flask(__name__, static_folder='static')
 app.secret_key = os.environ.get("SECRET_KEY", "your_secret_key")
@@ -75,15 +70,8 @@ def dashboard():
     selected_month = today.month
 
     if request.method == 'POST':
-        selected_month = request.form.get('month', str(selected_month))
-        selected_year = request.form.get('year', str(selected_year))
-
-        try:
-            selected_month = int(selected_month)
-            selected_year = int(selected_year)
-        except ValueError:
-            selected_month = today.month
-            selected_year = today.year
+        selected_month = int(request.form.get('month', today.month))
+        selected_year = int(request.form.get('year', today.year))
 
     current_year = today.year
     years_back = 5
@@ -91,66 +79,69 @@ def dashboard():
     all_months = [{"number": i, "name": calendar.month_name[i]} for i in range(1, 13)]
 
     keywords = ['sipariş', 'siparişini aldık', 'e-ticket', 'fatura']
-    emails, month_name = list_emails_with_month(
-        service, keywords, selected_year, selected_month
-    )
+    emails, month_name = list_emails_with_month(service, keywords, selected_year, selected_month)
+
+    monthly_total = 0
+    transaction_count = 0
+    daily_average = 0
 
     enriched_emails = []
     for email in emails:
         try:
+
             msg_data = service.users().messages().get(userId='me', id=email['id']).execute()
             payload = msg_data.get('payload', {})
             body_content = get_deepest_text_payload(payload)
             extracted = extract_order_details(body_content)
 
-            total_amount = 0
-            try:
-                total_amount = float(extracted['total_amount']) if extracted['total_amount'] != "Tutar bulunamadı" else 0
-            except ValueError:
-                pass
-
-            if extracted['order_id'] == "Sipariş Numarası bulunamadı":
-                attachment_ids = process_email_attachments(msg_data)  # Pass msg_data to process_email_attachments
+            if not extracted.get('order_id'):
+                attachment_ids = process_email_attachments(msg_data)
                 for att_id in attachment_ids:
                     attachment = service.users().messages().attachments().get(
-                        userId='me',
-                        messageId=email['id'],
-                        id=att_id
+                        userId='me', messageId=email['id'], id=att_id
                     ).execute()
 
                     pdf_data = attachment.get('data', '')
                     if pdf_data:
+                        pdf_data = base64.urlsafe_b64decode(pdf_data)
                         pdf_text = extract_pdf_content(pdf_data)
                         pdf_extracted = extract_pdf_order_details(pdf_text)
-
-                        if pdf_extracted['order_id'] != "PDF Sipariş Numarası Bulunamadı":
+                        if pdf_extracted['order_id']:
                             extracted = pdf_extracted
-                            try:
-                                total_amount = float(extracted['total_amount']) if extracted['total_amount'] != "Tutar bulunamadı" else 0
-                            except ValueError:
-                                pass
+
+            total_amount = 0
+            try:
+                total_amount = float(extracted.get('total_amount', 0))
+            except ValueError:
+                pass
 
             enriched_emails.append({
                 'subject': email.get('subject', '(Başlık Yok)'),
                 'sender': email.get('sender', '(Bilinmeyen Gönderici)'),
                 'date': email.get('date', '(Bilinmeyen Tarih)'),
                 'total_amount': total_amount,
-                'order_id': extracted['order_id'],
+                'order_id': extracted.get('order_id', '(Sipariş Numarası Yok)'),
                 'source': 'Bershka' if "Bershka" in email.get('sender', '') else 'Other'
             })
         except Exception as e:
-            print(f"E-posta işlenirken hata oluştu: {e}")
+            print(f"E-posta {email['id']} işlenirken hata oluştu: {e}")
             continue
 
     seen_order_ids = set()
     unique_emails = []
     for email in enriched_emails:
-        if email['order_id'] not in seen_order_ids and email['order_id'] != "Sipariş Numarası bulunamadı":
+        if email['order_id'] not in seen_order_ids and email['order_id'] != "(Sipariş Numarası Yok)":
             seen_order_ids.add(email['order_id'])
             unique_emails.append(email)
 
-    data_for_charts = pd.DataFrame(unique_emails)
 
+    if unique_emails:
+        monthly_total = sum(email['total_amount'] for email in unique_emails)
+        transaction_count = len(unique_emails)
+        days_in_month = calendar.monthrange(selected_year, selected_month)[1]
+        daily_average = monthly_total / days_in_month if days_in_month > 0 else 0
+
+    data_for_charts = pd.DataFrame(unique_emails)
     data_for_charts = data_for_charts.loc[:, ~data_for_charts.columns.duplicated()]
 
     if 'total_amount' not in data_for_charts.columns:
@@ -165,7 +156,10 @@ def dashboard():
             all_months=all_months,
             all_years=all_years,
             selected_month=selected_month,
-            selected_year=selected_year
+            selected_year=selected_year,
+            monthly_total=0,
+            transaction_count=0,
+            daily_average=0
         )
 
     data_for_charts['date'] = pd.to_datetime(data_for_charts['date'], errors='coerce')
@@ -183,9 +177,11 @@ def dashboard():
         selected_year=selected_year,
         month_name=month_name,
         pie_chart_url=pie_chart_url,
-        line_chart_url=line_chart_url
+        line_chart_url=line_chart_url,
+        monthly_total=monthly_total,
+        transaction_count=transaction_count,
+        daily_average=daily_average
     )
-
 
 if __name__ == '__main__':
     app.run(debug=True)
