@@ -41,7 +41,6 @@ def get_deepest_text_payload(payload):
     else:
         return ""
 
-    # Metni temizle
     full_text = re.sub(r'\s+', ' ', full_text).strip()
     return full_text
 
@@ -55,6 +54,7 @@ def extract_order_id(full_text):
         r'(\d+)\s+numaralı\s+siparişini\s+aldık',
         r"Sipariş No\.?\s*(\d+-\d+-\d+)",
         r"#(\d{3}-\d{7}-\d{7})",
+        r'(?:Sipariş|Order|Invoice|Fatura)[^0-9]*?(\d+)',
     ]
 
     for pattern in order_id_patterns:
@@ -75,7 +75,8 @@ def extract_amount(full_text):
         r'(?:Ara toplam|Toplam|Tutar|Amount|Total)[^0-9₺TL$USD€EUR]*?([\d.,]+)\s*(?:TL|TRY|₺|\$|USD|€|EUR)',
         r'([\d.,]+)\s*(?:TL|TRY|₺|\$|USD|€|EUR)',
         r'[₺$€]\s*([\d.,]+)',
-        r"KDV Dahil Sipariş Toplamı:\s*([\d.,]+)\s*TL"
+        r"KDV Dahil Sipariş Toplamı:\s*([\d.,]+)\s*TL",
+        r'(?:Toplam Tutar|Ara Toplam|Total Amount)[^0-9]*?([\d.,]+)\s*(?:TL|TRY|₺|\$|USD|€|EUR)',
     ]
 
     for pattern in general_patterns:
@@ -83,16 +84,18 @@ def extract_amount(full_text):
         for match in matches:
             amount_str = match.group(1).strip()
             try:
-                if ',' in amount_str and '.' in amount_str:
+                if '.' in amount_str and ',' in amount_str:
                     amount_str = amount_str.replace('.', '').replace(',', '.')
                 elif ',' in amount_str:
                     amount_str = amount_str.replace(',', '.')
                 amount = float(amount_str)
+                if amount < 10 and '.' in amount_str:
+                    amount *= 1000
                 return f"{amount:.2f}"
             except ValueError:
                 continue
-
     return None
+
 
 
 def extract_order_details(html_content):
@@ -101,6 +104,9 @@ def extract_order_details(html_content):
 
     order_id_ = extract_order_id(full_text)
     total_amount_ = extract_amount(full_text)
+
+    print(f"Extracted Order ID: {order_id_}")
+    print(f"Extracted Total Amount: {total_amount_}")
 
     return {
         'order_id': order_id_ or "Sipariş Numarası bulunamadı",
@@ -234,7 +240,12 @@ def get_date_range_for_month(year, month):
 
 
 def list_emails_with_month(service, keywords, year, month, max_results=50, query=None):
-    start_date, end_date = get_date_range_for_month(year, month)
+    """Belirli bir ay ve yıl için e-postaları listele."""
+    start_date = f"{year}-{month:02d}-01"
+    next_month = month + 1 if month < 12 else 1
+    next_year = year if month < 12 else year + 1
+    end_date = f"{next_year}-{next_month:02d}-01"
+
     query = f"after:{start_date} before:{end_date}"
 
     emails = list_emails_with_details(
@@ -399,6 +410,20 @@ def process_all_orders(service, max_results=50):
             continue
 
     return all_emails
+
+def process_emails_with_attachments(service, keywords, year, month):
+    """Belirtilen ay ve yıl için e-postaları işleyerek eklerini indir ve işle."""
+    emails, month_name = list_emails_with_month(service, keywords, year, month)
+
+    for email in emails:
+        try:
+            print(f"E-posta işleniyor: {email['subject']} ({email['id']})")
+            msg_data = service.users().messages().get(userId='me', id=email['id']).execute()
+            process_email_attachments(msg_data)
+        except Exception as e:
+            print(f"E-posta işlenirken hata: {e}")
+            continue
+
 
 
 def main():

@@ -60,11 +60,13 @@ def dashboard():
     if "credentials" not in session:
         return redirect(url_for('index'))
 
+    # Google Credentials
     creds = Credentials(**session["credentials"])
     if creds.expired and creds.refresh_token:
         creds.refresh(Request())
     service = build('gmail', 'v1', credentials=creds)
 
+    # Tarih Seçimi
     today = pd.Timestamp.now()
     selected_year = today.year
     selected_month = today.month
@@ -73,11 +75,13 @@ def dashboard():
         selected_month = int(request.form.get('month', today.month))
         selected_year = int(request.form.get('year', today.year))
 
+    # Tüm Yıllar ve Aylar
     current_year = today.year
     years_back = 5
     all_years = list(range(current_year, current_year - years_back - 1, -1))
     all_months = [{"number": i, "name": calendar.month_name[i]} for i in range(1, 13)]
 
+    # Anahtar Kelimeler ve E-posta Çekme
     keywords = ['sipariş', 'siparişini aldık', 'e-ticket', 'fatura']
     emails, month_name = list_emails_with_month(service, keywords, selected_year, selected_month)
 
@@ -88,12 +92,13 @@ def dashboard():
     enriched_emails = []
     for email in emails:
         try:
-
+            # E-posta Detaylarını Al
             msg_data = service.users().messages().get(userId='me', id=email['id']).execute()
             payload = msg_data.get('payload', {})
             body_content = get_deepest_text_payload(payload)
             extracted = extract_order_details(body_content)
 
+            # PDF İşleme (Eklenti)
             if not extracted.get('order_id'):
                 attachment_ids = process_email_attachments(msg_data)
                 for att_id in attachment_ids:
@@ -109,12 +114,20 @@ def dashboard():
                         if pdf_extracted['order_id']:
                             extracted = pdf_extracted
 
+            # Tutar İşleme
             total_amount = 0
             try:
-                total_amount = float(extracted.get('total_amount', 0))
+                amount_str = extracted.get('total_amount', "0").strip()
+                if ',' in amount_str and '.' in amount_str:
+                    amount_str = amount_str.replace('.', '').replace(',', '.')
+                elif ',' in amount_str:
+                    amount_str = amount_str.replace(',', '.')
+                total_amount = float(amount_str)
             except ValueError:
-                pass
+                print(f"Total Amount Parsing Error: {amount_str}")
+                total_amount = 0
 
+            # Enriched Email Listesi
             enriched_emails.append({
                 'subject': email.get('subject', '(Başlık Yok)'),
                 'sender': email.get('sender', '(Bilinmeyen Gönderici)'),
@@ -127,6 +140,7 @@ def dashboard():
             print(f"E-posta {email['id']} işlenirken hata oluştu: {e}")
             continue
 
+    # Eşsiz E-posta Verileri
     seen_order_ids = set()
     unique_emails = []
     for email in enriched_emails:
@@ -134,21 +148,15 @@ def dashboard():
             seen_order_ids.add(email['order_id'])
             unique_emails.append(email)
 
-
+    # Toplam ve Ortalama Hesaplama
     if unique_emails:
-        monthly_total = sum(email['total_amount'] for email in unique_emails)
+        monthly_total = sum(email['total_amount'] for email in unique_emails if email['total_amount'])
         transaction_count = len(unique_emails)
         days_in_month = calendar.monthrange(selected_year, selected_month)[1]
         daily_average = monthly_total / days_in_month if days_in_month > 0 else 0
 
+    # Grafik için Veri Hazırlama
     data_for_charts = pd.DataFrame(unique_emails)
-    data_for_charts = data_for_charts.loc[:, ~data_for_charts.columns.duplicated()]
-
-    if 'total_amount' not in data_for_charts.columns:
-        data_for_charts['total_amount'] = 0
-    if 'sender' not in data_for_charts.columns:
-        data_for_charts['sender'] = '(Bilinmeyen Gönderici)'
-
     if data_for_charts.empty:
         return render_template(
             'dashboard.html',
@@ -168,6 +176,7 @@ def dashboard():
     pie_chart_url = generate_pie_chart(data_for_charts)
     line_chart_url = generate_line_chart(daily_expenses, calendar.month_name[selected_month])
 
+    # Template'e Veri Gönderimi
     return render_template(
         'dashboard.html',
         emails=unique_emails,
@@ -182,6 +191,8 @@ def dashboard():
         transaction_count=transaction_count,
         daily_average=daily_average
     )
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)

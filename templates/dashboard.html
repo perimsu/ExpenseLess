@@ -293,7 +293,7 @@
                         <li>
                             <strong>Sender:</strong> {{ email.sender }}<br>
                             <strong>Date:</strong> {{ email.date }}<br>
-                            <strong>Total Amount:</strong> {{ email.total_amount }}
+                            <strong>Total Amount:</strong> {{ email.total_amount if email.total_amount else "Amount not available" }}
                         </li>
                     {% endfor %}
                 {% else %}
