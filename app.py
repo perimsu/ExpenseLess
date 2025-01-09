@@ -6,12 +6,15 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
 import pandas as pd
+
+from pdf_processor import process_email_attachments, extract_pdf_content, extract_pdf_order_details
 from visualization import generate_pie_chart, generate_line_chart
 from web_scraping import (
     list_emails_with_month,
     extract_order_details,
-    get_deepest_text_payload
+    get_deepest_text_payload,
 )
+
 
 app = Flask(__name__, static_folder='static')
 app.secret_key = os.environ.get("SECRET_KEY", "your_secret_key")
@@ -87,7 +90,7 @@ def dashboard():
     all_years = list(range(current_year, current_year - years_back - 1, -1))
     all_months = [{"number": i, "name": calendar.month_name[i]} for i in range(1, 13)]
 
-    keywords = ['sipariş', 'siparişini aldık']
+    keywords = ['sipariş', 'siparişini aldık', 'e-ticket', 'fatura']
     emails, month_name = list_emails_with_month(
         service, keywords, selected_year, selected_month
     )
@@ -106,12 +109,34 @@ def dashboard():
             except ValueError:
                 pass
 
+            if extracted['order_id'] == "Sipariş Numarası bulunamadı":
+                attachment_ids = process_email_attachments(msg_data)  # Pass msg_data to process_email_attachments
+                for att_id in attachment_ids:
+                    attachment = service.users().messages().attachments().get(
+                        userId='me',
+                        messageId=email['id'],
+                        id=att_id
+                    ).execute()
+
+                    pdf_data = attachment.get('data', '')
+                    if pdf_data:
+                        pdf_text = extract_pdf_content(pdf_data)
+                        pdf_extracted = extract_pdf_order_details(pdf_text)
+
+                        if pdf_extracted['order_id'] != "PDF Sipariş Numarası Bulunamadı":
+                            extracted = pdf_extracted
+                            try:
+                                total_amount = float(extracted['total_amount']) if extracted['total_amount'] != "Tutar bulunamadı" else 0
+                            except ValueError:
+                                pass
+
             enriched_emails.append({
                 'subject': email.get('subject', '(Başlık Yok)'),
                 'sender': email.get('sender', '(Bilinmeyen Gönderici)'),
                 'date': email.get('date', '(Bilinmeyen Tarih)'),
                 'total_amount': total_amount,
-                'order_id': extracted['order_id']
+                'order_id': extracted['order_id'],
+                'source': 'Bershka' if "Bershka" in email.get('sender', '') else 'Other'
             })
         except Exception as e:
             print(f"E-posta işlenirken hata oluştu: {e}")
@@ -160,6 +185,7 @@ def dashboard():
         pie_chart_url=pie_chart_url,
         line_chart_url=line_chart_url
     )
+
 
 if __name__ == '__main__':
     app.run(debug=True)

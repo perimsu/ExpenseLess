@@ -8,6 +8,8 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
+from pdf_processor import extract_pdf_content, process_email_attachments, extract_pdf_order_details
+
 
 def get_deepest_text_payload(payload):
     texts = []
@@ -40,7 +42,6 @@ def get_deepest_text_payload(payload):
 
 
 def extract_order_id(full_text):
-
     order_id_patterns = [
         r'(Sipariş Numarası[:#]?|Sipariş No[:#]?|Order ID[:#]?|Order Number[:#]?)[^\d]*(\d+)',
         r'(SİPARİŞ NO[:#\.]?|Order ID[:#\.]?)[^\d]*(\d+)',
@@ -59,7 +60,6 @@ def extract_order_id(full_text):
 
 
 def extract_amount(full_text):
-
     text = full_text.replace('\n', ' ').replace('\r', ' ')
     text = re.sub(r'\s+', ' ', text)
 
@@ -87,7 +87,6 @@ def extract_amount(full_text):
 
 
 def extract_order_details(html_content):
-
     soup = BeautifulSoup(html_content, 'html.parser')
     full_text = ' '.join(soup.get_text(separator=' ', strip=True).split())
 
@@ -101,7 +100,6 @@ def extract_order_details(html_content):
 
 
 def extract_trendyol_order_details(html_content):
-
     soup = BeautifulSoup(html_content, 'html.parser')
     full_text = ' '.join(soup.get_text(separator=' ', strip=True).split())
 
@@ -155,7 +153,6 @@ def extract_trendyol_order_details(html_content):
 
 
 def list_emails_with_details(service, keywords, max_results=50, query=None):
-
     keyword_query = " OR ".join(keywords)
     merged_query = f"{keyword_query} {query}" if query else keyword_query
 
@@ -212,7 +209,6 @@ def list_emails_with_details(service, keywords, max_results=50, query=None):
 
 
 def get_date_range_for_month(year, month):
-
     start_date = f"{year}-{month:02d}-01"
 
     next_month = month + 1
@@ -227,7 +223,6 @@ def get_date_range_for_month(year, month):
 
 
 def list_emails_with_month(service, keywords, year, month, max_results=50, query=None):
-
     start_date, end_date = get_date_range_for_month(year, month)
     query = f"after:{start_date} before:{end_date}"
 
@@ -242,7 +237,6 @@ def list_emails_with_month(service, keywords, year, month, max_results=50, query
 
 
 def parse_email_date(date_str):
-
     try:
         return datetime.strptime(date_str, '%a, %d %b %Y %H:%M')
     except ValueError:
@@ -253,7 +247,6 @@ def parse_email_date(date_str):
 
 
 def is_duplicate_order(existing_orders, new_order):
-
     new_order_id = new_order.get('order_id')
     if not new_order_id or new_order_id in [order['order_id'] for order in existing_orders]:
         return True
@@ -261,8 +254,14 @@ def is_duplicate_order(existing_orders, new_order):
 
 
 def process_all_orders(service, max_results=50):
+    general_keywords = ['e-ticket', 'sipariş özeti', 'sipariş tutarı', 'fatura', 'E-FATURA HESABI | BOYNER']
 
-    general_keywords = ['e-ticket', 'sipariş özeti', 'sipariş tutarı']
+    content_keywords = [
+        'sipariş', 'fatura', 'order', 'invoice',
+        'toplam tutar', 'total amount',
+        'ödeme', 'payment',
+        'sipariş özeti', 'order summary'
+    ]
 
     trendyol_query = "from:info@trendyolmail.com subject:'Siparişini aldık ✅'"
     try:
@@ -288,63 +287,97 @@ def process_all_orders(service, max_results=50):
 
     all_emails = []
 
+    def check_content_keywords(text):
+        text = text.lower()
+        return any(keyword.lower() in text for keyword in content_keywords)
+
     for msg in trendyol_results.get('messages', []):
         msg_id = msg['id']
         try:
             msg_data = service.users().messages().get(userId='me', id=msg_id).execute()
+            payload = msg_data.get('payload', {})
+            headers = payload.get('headers', [])
+
+            body_content = get_deepest_text_payload(payload)
+            extracted_data = extract_trendyol_order_details(body_content)
+
+            subject = next((h['value'] for h in headers if h['name'] == 'Subject'), 'Unknown')
+            sender = next((h['value'] for h in headers if h['name'] == 'From'), 'Unknown')
+            date = next((h['value'] for h in headers if h['name'] == 'Date'), 'Unknown')
+
+            new_order = {
+                "subject": subject,
+                "sender": sender,
+                "date": date,
+                "order_id": extracted_data['order_id'],
+                "amount": extracted_data['total_amount'],
+                "source": "Trendyol",
+                "processed_from": "Email"
+            }
+
+            if not is_duplicate_order(all_emails, new_order):
+                all_emails.append(new_order)
+
         except HttpError as e:
             print(f"Gmail API error when fetching message {msg_id}: {e}")
             continue
-        payload = msg_data.get('payload', {})
-        headers = payload.get('headers', [])
-
-        body_content = get_deepest_text_payload(payload)
-        extracted_data = extract_trendyol_order_details(body_content)
-
-        subject = next((h['value'] for h in headers if h['name'] == 'Subject'), 'Unknown')
-        sender = next((h['value'] for h in headers if h['name'] == 'From'), 'Unknown')
-        date = next((h['value'] for h in headers if h['name'] == 'Date'), 'Unknown')
-
-        new_order = {
-            "subject": subject,
-            "sender": sender,
-            "date": date,
-            "order_id": extracted_data['order_id'],
-            "amount": extracted_data['total_amount'],
-            "source": "Trendyol"
-        }
-
-        if not is_duplicate_order(all_emails, new_order):
-            all_emails.append(new_order)
 
     for msg in other_results.get('messages', []):
         msg_id = msg['id']
         try:
             msg_data = service.users().messages().get(userId='me', id=msg_id).execute()
+            payload = msg_data.get('payload', {})
+            headers = payload.get('headers', [])
+
+            subject = next((h['value'] for h in headers if h['name'] == 'Subject'), 'Unknown')
+            sender = next((h['value'] for h in headers if h['name'] == 'From'), 'Unknown')
+            date = next((h['value'] for h in headers if h['name'] == 'Date'), 'Unknown')
+
+            body_content = get_deepest_text_payload(payload)
+            extracted_data = None
+
+            # Boyner için PDF işleme kontrolü
+            if "Boyner" in sender:
+                attachment_ids = process_email_attachments(msg_data)
+                if attachment_ids:
+                    att_id = attachment_ids[0]
+                    try:
+                        attachment = service.users().messages().attachments().get(
+                            userId='me',
+                            messageId=msg_id,
+                            id=att_id
+                        ).execute()
+
+                        pdf_data = attachment.get('data', '')
+                        if pdf_data:
+                            pdf_text = extract_pdf_content(pdf_data)
+                            extracted_data = extract_pdf_order_details(pdf_text)
+
+                    except Exception as e:
+                        print(f"Boyner PDF işleme hatası: {e}")
+                        continue
+
+            if not extracted_data:
+                continue
+
+            print("Extracted data from PDF:", extracted_data)  # Debug print
+
+            new_order = {
+                "subject": subject,
+                "sender": sender,
+                "date": date,
+                "order_id": extracted_data.get('order_number', "Unknown Order ID"),  # Use get to avoid KeyError
+                "amount": extracted_data.get('total_amount', "Unknown Amount"),  # Use get to avoid KeyError
+                "source": "Boyner",
+                "processed_from": "PDF" if "Boyner" in sender else "Email"
+            }
+
+            if not is_duplicate_order(all_emails, new_order):
+                all_emails.append(new_order)
+
         except HttpError as e:
             print(f"Gmail API error when fetching message {msg_id}: {e}")
             continue
-        payload = msg_data.get('payload', {})
-        headers = payload.get('headers', [])
-
-        body_content = get_deepest_text_payload(payload)
-        extracted_data = extract_order_details(body_content)
-
-        subject = next((h['value'] for h in headers if h['name'] == 'Subject'), 'Unknown')
-        sender = next((h['value'] for h in headers if h['name'] == 'From'), 'Unknown')
-        date = next((h['value'] for h in headers if h['name'] == 'Date'), 'Unknown')
-
-        new_order = {
-            "subject": subject,
-            "sender": sender,
-            "date": date,
-            "order_id": extracted_data['order_id'],
-            "amount": extracted_data['total_amount'],
-            "source": "Other"
-        }
-
-        if not is_duplicate_order(all_emails, new_order):
-            all_emails.append(new_order)
 
     return all_emails
 
